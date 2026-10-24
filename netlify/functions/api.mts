@@ -3,6 +3,8 @@ import { getUser } from '@netlify/identity';
 import { and, desc, eq, sql } from 'drizzle-orm';
 import { ZodError } from 'zod';
 import OpenAI from 'openai';
+import { verify, runnerConfigured } from '../../server/verification.js';
+import { migrate } from '../../server/migration.js';
 import { database } from '../../db/index.js';
 import { investigations } from '../../db/schema.js';
 import { ApiError, investigate, model, patchedSources, publicReport, requestSchema } from '../../server/investigation.js';
@@ -13,7 +15,7 @@ function json(data: unknown, status = 200) {
 async function readBody(req: Request) {
   if (!req.headers.get('content-type')?.includes('application/json')) throw new ApiError(415, 'Send a JSON request.');
   const text = await req.text();
-  if (text.length > 30000) throw new ApiError(413, 'Request is too large.');
+  if (text.length > (new URL(req.url).pathname === '/api/admin/migration' ? 4500000 : 30000)) throw new ApiError(413, 'Request is too large.');
   try { return JSON.parse(text); } catch { throw new ApiError(400, 'Request body must contain valid JSON.'); }
 }
 export default async (req: Request) => {
@@ -27,7 +29,7 @@ export default async (req: Request) => {
     if (path === '/api/health' && req.method === 'GET') {
       try {
         await database().execute(sql`select 1`);
-        return json({ status: 'ok', database: 'ok', provider: 'netlify-ai-gateway', verification_worker: 'disabled' });
+        return json({ status: 'ok', database: 'ok', provider: 'netlify-ai-gateway', verification_worker: runnerConfigured() ? 'configured_not_probed' : 'unconfigured', github: 'token_optional', ai: 'use_authenticated_provider_diagnostic' });
       } catch { return json({ status: 'degraded', database: 'unavailable', detail: 'Database is temporarily unavailable.' }, 503); }
     }
     const user = await getUser();
@@ -35,9 +37,13 @@ export default async (req: Request) => {
     if (!user) throw new ApiError(401, 'Sign in with your email to save and view investigations.');
     if (path === '/api/diagnostics/provider' && req.method === 'POST') {
       try {
-        await new OpenAI().models.retrieve(model, { timeout: 8000, maxRetries: 0 });
+        await new OpenAI().chat.completions.create({ model, messages: [{ role: 'user', content: 'Reply OK.' }], max_completion_tokens: 16 }, { timeout: 12000, maxRetries: 0 });
         return json({ provider: 'Netlify AI Gateway', model, status: 'connected' });
       } catch { throw new ApiError(503, 'AI connection could not be confirmed. Please retry later.'); }
+    }
+    if (path === '/api/admin/migration' && req.method === 'POST') {
+      if (!user.roles?.includes('admin')) throw new ApiError(403, 'Administrator access required.');
+      return json(await migrate(await readBody(req), user.id));
     }
     const db = database();
     if ((path === '/api/jobs' || path === '/api/repositories/analyze') && req.method === 'POST') {
@@ -54,7 +60,7 @@ export default async (req: Request) => {
       const [row] = await db.select({ count: sql<number>`count(*)::int` }).from(investigations).where(eq(investigations.ownerId, user.id));
       return json({ jobs: row.count });
     }
-    const match = /^\/api\/jobs\/([a-f\d-]{36})(?:\/(verify|approve-patch))?$/.exec(path);
+    const match = /^\/api\/jobs\/([A-Za-z0-9_-]{1,100})(?:\/(verify|approve-patch))?$/.exec(path);
     if (!match) throw new ApiError(404, 'API endpoint not found.');
     const [row] = await db.select().from(investigations).where(and(eq(investigations.id, match[1]), eq(investigations.ownerId, user.id))).limit(1);
     if (!row) throw new ApiError(404, 'Investigation not found.');
@@ -68,11 +74,11 @@ export default async (req: Request) => {
       job.approved_source_files = patchedSources(job.patch, job.source_files, job.evidence.map(item => item.path));
       job.approved_files = Object.entries(job.approved_source_files).filter(([path, content]) => content !== job.source_files[path]).map(([path, content]) => ({ path, content }));
       job.patch_approved = true;
+      job.verification = { status: 'NOT_RUN', command: null, tested_commit: job.revision, exit_code: null, logs: '', details: 'Approved snapshot changed. Run verification again.' };
       job.events.push({ stage: 'patch_approval', status: 'complete', at: new Date().toISOString(), detail: 'Approved patch applied to a disposable source snapshot. The original repository was unchanged.' });
     } else {
-      job.verification.status = 'BLOCKED';
-      job.verification.details = 'Tests were not executed. This deployment has no isolated Python execution worker.';
-      job.events.push({ stage: 'verification', status: 'BLOCKED', at: new Date().toISOString(), detail: job.verification.details });
+      job.verification = await verify(job);
+      job.events.push({ stage: 'verification', status: job.verification.status, at: new Date().toISOString(), detail: job.verification.details });
     }
     job.updated_at = new Date().toISOString();
     job.steps = job.events;

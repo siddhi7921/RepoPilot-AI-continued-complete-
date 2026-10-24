@@ -1,0 +1,15 @@
+{$RUNNER_DOMAIN} {
+    @authorized {
+        method POST
+        path /run
+        header Authorization "Bearer {$REPOPILOT_RUNNER_TOKEN}"
+    }
+    handle @authorized {
+        reverse_proxy runner:8090 {
+            header_up -Authorization
+        }
+    }
+    handle {
+        respond "Unauthorized" 401
+    }
+}
