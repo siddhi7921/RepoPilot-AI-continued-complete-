@@ -1,33 +1,271 @@
-# RepoPilot AI on Netlify
+# RepoPilot AI 🚀
 
-RepoPilot investigates public GitHub repositories using commit-pinned source evidence, structured AI analysis, citation validation, and human-approved candidate patches. The Netlify application lives in `public/`, `server/`, `netlify/functions/`, and `db/`. The two original Python application directories remain available for existing Docker installations.
+### Evidence-Driven Repository Investigation & AI-Assisted Code Repair
 
-## Deployment
+**Investigate. Understand. Propose. Verify.**
 
-Connect this repository to Netlify. The root `netlify.toml` configures the publish directory, browser Identity bundle, API function, headers, and investigation detail URLs. Dependency installation uses `package-lock.json`.
+RepoPilot AI is an AI-powered developer tool that investigates public GitHub repositories, traces issues to source-code evidence, generates reviewable patch proposals, and reports verification results transparently.
 
-Investigations persist in Netlify Database through Drizzle ORM. The initial schema and generated migration are checked in; Netlify applies migrations during deployment. No SQLite file or persistent application process is required for the Netlify application.
+Instead of blindly trusting AI-generated fixes, RepoPilot connects its analysis to retrieved source evidence, validates proposed changes, and keeps humans in control of patch approval.
 
-Netlify Identity provides email registration, confirmation, sign-in, password recovery, and invitation acceptance. Registration requires email confirmation by default. Each investigation belongs to its authenticated account, and API queries enforce ownership. Previous Python usernames and sessions do not transfer to Identity; users create an email account on the Netlify site. Existing SQLite reports are not automatically imported.
+[Features](#-features) · [Architecture](#-architecture) · [Getting Started](#-getting-started) · [Deployment](#-deployment) · [Limitations](#-limitations)
 
-AI calls use Netlify AI Gateway with `gpt-5.2`. No user-supplied model key is needed. If analysis cannot complete, the investigation still saves real source evidence and explains the failure. The included session-expiry sample already contains the corrected `>=` guard; analysis must not invent an expiration bug or unnecessary patch.
+---
 
-GitHub requests work without a token, subject to GitHub's public rate limits. An existing server-side `GITHUB_TOKEN` configuration is supported. Repository ingestion is bounded to 24 source files, 64 KB per file, and 768 KB total. Partial indexing is labeled in the report.
+## 🌟 Why RepoPilot AI?
 
-Patch approval validates a unified diff against retrieved evidence and applies it to a separate source snapshot stored with the investigation. The original repository is never modified. Python tests are **not executed** on Netlify Functions: verification reports `BLOCKED` because this deployment has no isolated execution worker. It never reports an unexecuted test as passed.
+Debugging unfamiliar repositories can require hours of reading source code, tracing dependencies, reproducing issues, and evaluating possible fixes.
 
-## Development and checks
+RepoPilot AI aims to streamline this workflow by combining repository inspection, structured AI reasoning, source citations, and human-reviewed patch proposals.
 
-Use Node.js 22.12 or later.
+**Core principles:**
 
-```sh
+- 🔎 **Evidence first:** Ground analysis in retrieved repository files and source references.
+- 📌 **Commit-pinned context:** Associate evidence with a specific source revision.
+- 🧠 **Structured AI analysis:** Organize findings into actionable investigation reports.
+- 🛠️ **Reviewable patches:** Generate candidate changes for human approval.
+- 🛡️ **Safe by design:** Never modify the original GitHub repository.
+- ✅ **Honest verification:** Clearly distinguish successful checks from blocked or unexecuted tests.
+
+## ✨ Features
+
+### 🔍 Repository Investigation
+- Investigate accessible public GitHub repositories.
+- Retrieve relevant source files and associate evidence with a specific commit.
+- Apply bounded repository ingestion to keep analysis manageable.
+- Identify when indexing is partial and communicate that limitation.
+
+### 🧠 Evidence-Grounded AI Analysis
+- Analyze repository issues using structured AI outputs.
+- Produce root-cause hypotheses supported by retrieved source evidence.
+- Validate source citations against the available evidence.
+- Explain when evidence is insufficient or an AI provider fails.
+
+### 🩹 AI-Assisted Patch Proposals
+- Generate candidate unified diffs for review.
+- Validate proposed changes against retrieved source evidence.
+- Apply approved candidate changes to a separate source snapshot.
+- Preserve the original repository without silently pushing or modifying upstream code.
+
+### 📋 Transparent Verification
+RepoPilot distinguishes between actual verification results and work that could not be executed.
+
+| Status | Meaning |
+|---|---|
+| `PASS` | The relevant check completed successfully. |
+| `FAIL` | The check ran and failed. |
+| `NOT_RUN` | The check was not executed. |
+| `BLOCKED` | Verification could not proceed because a required capability or dependency was unavailable. |
+
+A generated patch is not automatically a verified fix. On the Netlify deployment, Python test execution is blocked because an isolated execution worker is not included.
+
+### 🔐 Authentication & Data Isolation
+- Netlify Identity supports account registration and authentication flows.
+- Email confirmation is required by default.
+- Investigations are associated with authenticated accounts.
+- API queries enforce investigation ownership.
+- Persistent investigation records use Netlify Database with Drizzle ORM.
+
+### ⚡ Modern Deployment Architecture
+- Netlify-hosted frontend and serverless API functions.
+- Netlify AI Gateway for AI analysis.
+- Database-backed investigation persistence.
+- Environment-based server-side GitHub token configuration.
+- Existing Python/Docker application directories retained for legacy installations.
+
+## 🏗️ Architecture
+
+The repository supports two application paths.
+
+### Netlify application
+
+\`\`\`text
+RepoPilot AI
+├── public/              # Web interface and generated assets
+├── web/                 # Frontend source, including Identity integration
+├── server/              # Shared server-side application logic
+├── netlify/
+│   └── functions/       # Serverless API endpoints
+├── db/                  # Database schema and migrations
+├── netlify.toml         # Netlify build and routing configuration
+├── package.json
+└── package-lock.json
+\`\`\`
+
+**Investigation workflow**
+
+1. Authenticate the user.
+2. Retrieve bounded source evidence from a public GitHub repository.
+3. Run structured AI analysis using Netlify AI Gateway.
+4. Validate citations and candidate patch changes.
+5. Store investigation results and the separate source snapshot.
+6. Present the report and accurately describe verification status.
+
+### Legacy Python application
+
+The original Python application directories remain available for existing Docker-based installations. They can continue to use the Python application's own dependencies and test suite.
+
+The Netlify deployment does not run the Python server or execute repository Python tests.
+
+## 🧰 Technology Stack
+
+| Layer | Technology |
+|---|---|
+| Web deployment | Netlify |
+| Serverless API | Netlify Functions |
+| Frontend | TypeScript and browser assets |
+| Database access | Drizzle ORM |
+| Persistent storage | Netlify Database |
+| Authentication | Netlify Identity |
+| AI integration | Netlify AI Gateway |
+| Legacy backend | Python, FastAPI and Docker |
+| Source control | Git and GitHub |
+
+## 🚀 Getting Started
+
+### Prerequisites
+
+- Node.js 22.12 or later
+- npm
+- A Git client
+- A Netlify account for hosted deployment
+- Required Netlify database and AI Gateway capabilities for production use
+
+### 1. Clone the repository
+
+\`\`\`bash
+git clone https://github.com/YOUR_USERNAME/YOUR_REPOSITORY.git
+cd YOUR_REPOSITORY
+\`\`\`
+
+Replace the repository URL with the actual RepoPilot AI GitHub URL.
+
+### 2. Install dependencies
+
+\`\`\`bash
 npm ci
+\`\`\`
+
+### 3. Build the application
+
+\`\`\`bash
 npm run build
-netlify dev --port 8889
+\`\`\`
+
+The Netlify build generates `public/identity.js` from `web/identity.ts`.
+
+### 4. Run the development checks
+
+\`\`\`bash
 npm run typecheck
 npm test
-```
+\`\`\`
 
-Netlify generates `public/identity.js` during its build. The source is `web/identity.ts`.
+### 5. Run with Netlify Dev
 
-The original Python suite can also be run from the repository root after installing the primary application's requirements. Its real Git patch integration test requires an environment that permits `git apply`.
+\`\`\`bash
+netlify dev --port 8889
+\`\`\`
+
+Run the commands individually and review each exit code. Local execution may require Netlify authentication, database configuration, or AI Gateway access.
+
+## ☁️ Deployment
+
+1. Push the repository to GitHub.
+2. Import the repository into Netlify.
+3. Confirm that the root `netlify.toml` is used.
+4. Ensure the configured database and AI Gateway are available to the deployed application.
+5. Configure any required server-side GitHub token through the deployment environment.
+6. Deploy and inspect the build logs.
+7. Test registration, authentication, investigation creation, persistence, report retrieval, and ownership enforcement.
+
+The checked-in database schema and migration files define the application's database setup. Confirm that the deployed database is provisioned and migrations have completed successfully before using the application.
+
+Netlify hosts the web application and serverless API. It does not host the persistent FastAPI process or provide the isolated Python test worker required for repository test execution.
+
+## ⚙️ Repository Ingestion Limits
+
+The Netlify application uses bounded ingestion to control request size and analysis cost.
+
+| Limit | Value |
+|---|---:|
+| Source files per investigation | 24 |
+| Maximum size per file | 64 KB |
+| Total indexed source size | 768 KB |
+
+Reports should clearly indicate when the available source snapshot is partial. These limits do not imply that every file in a repository has been inspected.
+
+## 🔒 Security
+
+RepoPilot AI is designed around reviewable changes and separation between investigation and modification.
+
+- The original upstream repository is not modified.
+- Candidate changes are applied to a separate source snapshot.
+- Investigation access is restricted to the owning authenticated account.
+- API keys and tokens must remain server-side.
+- Repository content and AI-generated output must be treated as untrusted input.
+- Running arbitrary repository code requires a separate, strongly isolated execution environment.
+
+**Important:** These design goals do not replace a security audit. Review deployed configuration, authorization, request validation, dependency vulnerabilities, and execution isolation before handling sensitive workloads.
+
+## 🧪 Testing
+
+Run the Node.js checks from the repository root:
+
+\`\`\`bash
+npm ci
+npm run build
+npm run typecheck
+npm test
+\`\`\`
+
+The legacy Python test suite can also be run after installing the appropriate requirements for the original Python application.
+
+Its Git patch integration test requires an environment where `git apply` is available and permitted.
+
+Test results should be reported from actual command output. A successful frontend build does not prove that every API endpoint, database migration, AI integration, or patch workflow works correctly.
+
+## ⚠️ Limitations
+
+- GitHub requests without a token are subject to public API rate limits.
+- Repository ingestion is bounded; some repositories will only be partially indexed.
+- AI findings are hypotheses and should be reviewed before acting on them.
+- AI-generated patches can be incorrect even when their citations are valid.
+- Netlify deployment does not execute Python tests.
+- Verification is reported as `BLOCKED` when isolated execution is unavailable.
+- Existing Python usernames, sessions, and SQLite reports are not automatically transferred to Netlify Identity and the new database.
+- AI Gateway availability, model access, and account entitlements must be confirmed in the actual deployment environment.
+
+## 🗺️ Roadmap
+
+Potential future improvements include:
+
+- [ ] A hardened, isolated test-execution worker.
+- [ ] Automated regression testing for generated patches.
+- [ ] Richer dependency and cross-file analysis.
+- [ ] Investigation history and improved report comparison.
+- [ ] Additional repository providers and source-control integrations.
+- [ ] More comprehensive security and performance testing.
+- [ ] Expanded CI checks and deployment health monitoring.
+
+Roadmap items are proposals, not claims of existing functionality.
+
+## 🤝 Contributing
+
+Contributions, bug reports, documentation improvements, and security-focused reviews are welcome.
+
+1. Fork the repository.
+2. Create a feature branch.
+3. Make a focused change.
+4. Run the relevant tests and checks.
+5. Submit a pull request explaining the change and its validation.
+
+Please never include API keys, access tokens, private repository contents, or production data in commits or issue reports.
+
+## 📄 License
+
+Add the project's actual license here. If no license has been selected, choose one before describing the repository as open source.
+
+---
+
+**RepoPilot AI — Evidence before assumptions. Review before applying. Verify before trusting.**
