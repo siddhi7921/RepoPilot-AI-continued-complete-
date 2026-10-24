@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Investigation {{ job.job_id }} · RepoPilot AI</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <div class="shell">
+      <header class="topbar">
+        <div class="brand-block">
+          <div class="brand-mark">RP</div>
+          <div>
+            <div class="eyebrow">Investigation detail</div>
+            <h1>RepoPilot AI</h1>
+          </div>
+        </div>
+        <a class="ghost-link" href="/">Back to dashboard</a>
+      </header>
+      <main class="panel detail-panel">
+        <h2>{{ job.repository_name or job.repo_url }}</h2>
+        <p>Job {{ job.job_id }} · {{ (job.repository_mode or "unknown")|upper }} · revision <code>{{ job.revision }}</code></p>
+        <p>Investigation state: {{ job.status }} · Indexing: {{ job.indexing_status }}</p>
+        <p>Created: {{ job.created_at or "unknown" }} · Updated: {{ job.updated_at or job.created_at or "unknown" }}</p>
+        <p>{{ job.summary }}</p>
+        {% if job.summary_citations %}
+        <p>Summary evidence:
+          {% for citation in job.summary_citations %}
+          {{ citation.file_path }}:{{ citation.line_start }}-{{ citation.line_end }}{% if not loop.last %}; {% endif %}
+          {% endfor %}
+        </p>
+        {% endif %}
+        {% if job.root_cause_citation %}
+        <p>Root-cause evidence: {{ job.root_cause_citation.file_path }}:{{ job.root_cause_citation.line_start }}-{{ job.root_cause_citation.line_end }}</p>
+        {% endif %}
+        <h3>Root cause</h3>
+        <p>{{ job.root_cause or "No model-generated root cause is available." }}</p>
+        <h3>Hypotheses</h3>
+        {% for item in job.hypotheses %}
+        <article class="metric-box">
+          <p>{{ item.description }}</p>
+          <p>Evidence: {{ item.citation.file_path }}:{{ item.citation.line_start }}-{{ item.citation.line_end }}</p>
+          <p>Confidence: {{ item.confidence }} — {{ item.confidence_reason }}</p>
+        </article>
+        {% else %}
+        <p>No model-generated hypotheses are available.</p>
+        {% endfor %}
+        <h3>Verification: {{ job.verification.status }}</h3>
+        <p>{{ job.verification.details }}</p>
+        <h3>Evidence</h3>
+        {% for item in job.evidence %}
+        <article class="metric-box">
+          <strong>{{ item.path }}:{{ item.line_start }}-{{ item.line_end }}</strong>
+          <pre>{{ item.snippet }}</pre>
+        </article>
+        {% else %}
+        <p>No source evidence was retrieved.</p>
+        {% endfor %}
+        <h3>Candidate patch</h3>
+        <pre>{{ job.patch or "No candidate patch is available." }}</pre>
+        <h3>Workflow events</h3>
+        <ul class="step-list">
+          {% for event in job.events %}
+          <li><strong>{{ event.stage }}</strong> — {{ event.status }} — {{ event.at }} — {{ event.detail }}</li>
+          {% endfor %}
+        </ul>
+        <h3>Errors and limitations</h3>
+        <ul class="step-list">
+          {% for error in job.errors %}
+          <li>{{ error }}</li>
+          {% else %}
+          <li>No recorded errors.</li>
+          {% endfor %}
+        </ul>
+      </main>
+    </div>
+  </body>
+</html>
