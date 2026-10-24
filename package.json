@@ -1,0 +1,30 @@
+{
+  "name": "repopilot-netlify",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "esbuild web/identity.ts --bundle --format=esm --outfile=public/identity.js",
+    "test": "tsx --test tests/*.test.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@netlify/database": "^2.0.1",
+    "@netlify/functions": "^6.0.3",
+    "@netlify/identity": "^2.0.0",
+    "diff": "^9.0.0",
+    "drizzle-orm": "^1.0.0-beta.22",
+    "openai": "^7.43.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/diff": "^7.0.2",
+    "@types/node": "^26.6.5",
+    "drizzle-kit": "^1.0.0-beta.22",
+    "esbuild": "^0.28.2",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  }
+}

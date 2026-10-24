@@ -110,6 +110,7 @@ function renderJob(job) {
         renderJob(data);
       } catch (error) {
         summaryBox.textContent = error.message;
+        approveButton.disabled = false;
       }
     });
   }

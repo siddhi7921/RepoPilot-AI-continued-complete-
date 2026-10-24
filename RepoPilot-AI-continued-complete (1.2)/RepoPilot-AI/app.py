@@ -707,7 +707,7 @@ def approve_patch(job_id: str, approval: PatchApproval) -> dict[str, Any]:
                 destination.write_bytes(content.encode("utf-8"))
             environment = {"PATH": os.environ.get("PATH", ""), "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": os.devnull}
             patch_file_name = ".repopilot-candidate.patch"
-            (root / patch_file_name).write_bytes(job["patch"].rstrip().encode("utf-8") + b"\n")
+            (root / patch_file_name).write_bytes(job["patch"].rstrip("\r\n").encode("utf-8") + b"\n")
             check = subprocess.run(
                 ["git", "apply", "--check", patch_file_name], cwd=root,
                 capture_output=True, timeout=10, env=environment, check=False,
@@ -725,17 +725,18 @@ def approve_patch(job_id: str, approval: PatchApproval) -> dict[str, Any]:
                 file_path = root.joinpath(*PurePosixPath(evidence["path"]).parts)
                 if file_path.exists():
                     changed.append({"path": evidence["path"], "content": file_path.read_text(encoding="utf-8")})
+
+            approved_source_files: dict[str, str] = {}
+            for relative in source_files:
+                safe_relative = PurePosixPath(relative)
+                file_path = root.joinpath(*safe_relative.parts)
+                if file_path.is_file():
+                    approved_source_files[relative] = file_path.read_text(encoding="utf-8")
     except FileNotFoundError as exc:
         raise HTTPException(status_code=503, detail="Git is required for disposable patch review but was not found.") from exc
     except subprocess.TimeoutExpired as exc:
         raise HTTPException(status_code=504, detail="Disposable patch application timed out.") from exc
 
-    approved_source_files: dict[str, str] = {}
-    for relative in source_files:
-        safe_relative = PurePosixPath(relative)
-        file_path = root.joinpath(*safe_relative.parts)
-        if file_path.is_file():
-            approved_source_files[relative] = file_path.read_text(encoding="utf-8")
     job["patch_approved"] = True
     job["patch_workspace"] = "approved-and-applied-to-disposable-workspace"
     job["approved_files"] = changed
