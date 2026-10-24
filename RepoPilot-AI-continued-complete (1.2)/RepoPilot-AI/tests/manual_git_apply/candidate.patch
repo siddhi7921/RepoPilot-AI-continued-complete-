@@ -1,0 +1,5 @@
+--- a/src/module.py
++++ b/src/module.py
+@@ -1 +1 @@
+-old
++new

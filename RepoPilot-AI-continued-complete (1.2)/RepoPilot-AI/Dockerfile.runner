@@ -1,0 +1,9 @@
+FROM python:3.13-slim
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1
+WORKDIR /runner
+RUN pip install --no-cache-dir pytest==8.3.2 \
+    && useradd --create-home --uid 10002 --shell /usr/sbin/nologin runner
+COPY --chown=runner:runner runner_service.py ./runner_service.py
+USER 10002:10002
+EXPOSE 8090
+CMD ["python", "runner_service.py"]
