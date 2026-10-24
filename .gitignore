@@ -9,3 +9,7 @@ __pycache__/
 !.netlify/features/
 .netlify/features/*
 !.netlify/features/netlify-identity
+.migration/
+*.migration.json
+*.sqlite
+*.sqlite3.backup

@@ -1,0 +1,35 @@
+# Dedicated verification host: no application database, Identity, or AI credentials.
+services:
+  runner:
+    build:
+      context: ../../RepoPilot-AI-continued-complete/RepoPilot-AI
+      dockerfile: Dockerfile.runner
+    networks: [execution]
+    read_only: true
+    tmpfs:
+      - /tmp:size=96m,noexec,nosuid,nodev
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    mem_limit: 384m
+    cpus: 1.0
+    pids_limit: 64
+  gateway:
+    image: caddy:2-alpine
+    environment:
+      RUNNER_DOMAIN: ${RUNNER_DOMAIN:?Set the dedicated runner hostname}
+      REPOPILOT_RUNNER_TOKEN: ${REPOPILOT_RUNNER_TOKEN:?Set a strong shared runner token}
+    ports: ["443:443", "80:80"]
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - tls:/data
+      - config:/config
+    networks: [public, execution]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+networks:
+  public: {}
+  execution:
+    internal: true
+volumes:
+  tls: {}
+  config: {}

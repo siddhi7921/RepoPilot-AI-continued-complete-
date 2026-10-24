@@ -189,9 +189,9 @@ The Netlify application uses bounded ingestion to control request size and analy
 
 | Limit | Value |
 |---|---:|
-| Source files per investigation | 24 |
+| Source files per investigation | 80 |
 | Maximum size per file | 64 KB |
-| Total indexed source size | 768 KB |
+| Total indexed source size | 3 MB |
 
 Reports should clearly indicate when the available source snapshot is partial. These limits do not imply that every file in a repository has been inspected.
 
@@ -225,16 +225,32 @@ Its Git patch integration test requires an environment where `git apply` is avai
 
 Test results should be reported from actual command output. A successful frontend build does not prove that every API endpoint, database migration, AI integration, or patch workflow works correctly.
 
-## ⚠️ Limitations
+## ⚠️ Deployment requirements and remaining constraints
 
-- GitHub requests without a token are subject to public API rate limits.
-- Repository ingestion is bounded; some repositories will only be partially indexed.
-- AI findings are hypotheses and should be reviewed before acting on them.
-- AI-generated patches can be incorrect even when their citations are valid.
-- Netlify deployment does not execute Python tests.
-- Verification is reported as `BLOCKED` when isolated execution is unavailable.
-- Existing Python usernames, sessions, and SQLite reports are not automatically transferred to Netlify Identity and the new database.
-- AI Gateway availability, model access, and account entitlements must be confirmed in the actual deployment environment.
+Repository ingestion now prioritizes issue-related paths and tests, supports an optional `include_paths` array in investigation requests, and records coverage counts, oversized files, truncated trees, and missing requested paths. The source snapshot remains bounded to 80 files, 64 KB per file, and 3 MB total. Configure `GITHUB_TOKEN` server-side for a higher GitHub request quota; GitHub still enforces its own rate limits.
+
+Candidate patches must apply cleanly and pass a separate AI review before being offered. Findings remain hypotheses, and neither citations, AI review, nor passing tests guarantees correctness. Provider diagnostics now perform a small inference request through AI Gateway rather than checking only model metadata. Production access and account entitlements still require a successful deployed diagnostic.
+
+### Connect the Python runner
+
+The verification endpoint now calls the existing runner over authenticated HTTPS and binds each result to a hash of the exact baseline or approved source snapshot. Approving a patch clears earlier verification results. Unavailable or invalid runner responses remain `BLOCKED`; test output is not persisted because repository output may contain sensitive data.
+
+Deploy the dedicated configuration in `deploy/runner/compose.yaml` on the runner host. Configure `RUNNER_DOMAIN` and a strong `REPOPILOT_RUNNER_TOKEN` through that host's secret management, then start the services with Docker Compose. Configure the matching token and HTTPS `REPOPILOT_RUNNER_URL` in the Netlify function environment. The gateway authenticates requests and strips authorization before forwarding to the internal runner. Keep application credentials and databases off the runner host. Review its execution isolation before accepting untrusted repositories.
+
+The runner deployment and an end-to-end deployed verification have not been performed. Netlify Functions delegate Python execution to this separately hosted worker.
+
+### Migrate legacy SQLite data
+
+The administrator tool is `scripts/migrate_legacy.py`. Keep the Python application operational and retain the original database until migration results have been verified.
+
+1. Create a private working directory outside source control. Run `python3 scripts/migrate_legacy.py prepare --sqlite /path/to/original.sqlite --backup /private/path/backup.sqlite --export /private/path/export.migration.json`. Preparation uses SQLite's online backup, verifies backup integrity, and exports account metadata and reports without passwords or sessions. Existing backup and export files are never overwritten.
+2. Create a private JSON mapping from each legacy username to its explicitly verified Netlify Identity user ID. Each destination must exist and be confirmed. Account matching by email or username is not performed. Unowned legacy reports are skipped for manual review.
+3. Sign in as a confirmed Identity administrator with the server-controlled `admin` role. Supply the current session through `REPOPILOT_ADMIN_TOKEN` in the process environment without putting it in command history or logs. The tool sends this session as a secure HTTPS cookie; it never imports legacy sessions.
+4. Run `python3 scripts/migrate_legacy.py import --export /private/path/export.migration.json --mapping /private/path/mapping.json --site https://your-site.example`. This performs a dry run and prints counts, skipped record indexes, and a confirmation digest without personal data.
+5. Review the complete dry-run summary. Repeat the same command with `--commit --confirm-digest DIGEST_FROM_DRY_RUN` to commit the reviewed plan. Batches are transactional and audited; rerunning the same export detects duplicates. Conflicting IDs, changed imports, or ownership changes stop the import without overwriting reports. Reduce `--batch-size` if necessary; the default is one record.
+6. Review the verified report counts and all skipped records. Imported reports retain supported IDs, timestamps, evidence, source snapshots, and history. Previous approvals and verification claims are preserved only as historical metadata; users sign in again and repeat review and verification.
+
+The new database migration must deploy before importing. No real legacy database has been imported or verified. Backup files contain the original database and must be protected as sensitive data. Full live-database migration, concurrency, and rollback validation remain necessary before production use.
 
 ## 🗺️ Roadmap
 
