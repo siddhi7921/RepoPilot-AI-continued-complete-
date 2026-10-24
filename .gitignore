@@ -1,0 +1,11 @@
+node_modules/
+public/identity.js
+__pycache__/
+.pytest_cache/
+*.sqlite3
+
+.netlify/*
+!.netlify/results.md
+!.netlify/features/
+.netlify/features/*
+!.netlify/features/netlify-identity

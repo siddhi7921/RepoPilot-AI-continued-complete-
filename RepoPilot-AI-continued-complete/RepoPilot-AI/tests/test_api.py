@@ -657,3 +657,39 @@ def test_ui_references_the_favicon_asset():
     assert response.status_code == 200
     assert 'rel="icon"' in response.text
     assert "/favicon.svg" in response.text
+
+
+def test_patch_approval_preserves_snapshot_before_workspace_cleanup(monkeypatch, tmp_path):
+    from types import SimpleNamespace
+
+    job = {
+        "job_id": "snapshot-job", "patch_approved": False,
+        "patch": "--- a/src/module.py\n+++ b/src/module.py\n@@ -1 +1 @@\n-old\n+new  ",
+        "source_files": {"src/module.py": "old\n", "tests/test_module.py": "assert True\n"},
+        "evidence": [{"path": "src/module.py"}], "events": [],
+    }
+    saved = {}
+    workspaces = []
+
+    def apply_patch(command, *, cwd, **kwargs):
+        root = Path(cwd)
+        workspaces.append(root)
+        assert (root / ".repopilot-candidate.patch").read_bytes().endswith(b"+new  \n")
+        if "--check" not in command:
+            (root / "src/module.py").write_text("new  \n")
+        return SimpleNamespace(returncode=0, stderr=b"")
+
+    monkeypatch.setenv("REPOPILOT_WORKSPACE_ROOT", str(tmp_path))
+    monkeypatch.setattr(app, "_get_job", lambda job_id: job)
+    monkeypatch.setattr(app, "_update_job", lambda updated: saved.update(updated))
+    monkeypatch.setattr(app.subprocess, "run", apply_patch)
+
+    result = app.approve_patch("snapshot-job", app.PatchApproval(approved=True))
+
+    assert saved["approved_source_files"] == {
+        "src/module.py": "new  \n", "tests/test_module.py": "assert True\n",
+    }
+    assert saved["source_files"]["src/module.py"] == "old\n"
+    assert result["approved_files"] == [{"path": "src/module.py", "content": "new  \n"}]
+    assert "approved_source_files" not in result
+    assert workspaces and all(not root.exists() for root in workspaces)
